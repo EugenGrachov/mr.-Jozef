@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timedelta
 import datetime as dt
 import pickle
-from prettytable import PrettyTable                # HERE IS A QUESTION WITH IMPORTING "prettytable"
+from prettytable import PrettyTable
 
 
 # Base class for different fields like Name, Phone, Birthday
@@ -113,11 +113,11 @@ class AddressBook(UserDict):
         self.data[record.name.value] = record
 
     # Find a contact by name at the address book
-    def find_contact(self, name):                      # HERE IS A QUESTION WITH NAMING "find"
+    def find_contact(self, name):
         return self.data.get(name)
 
     # Delete a contact from the address book by name 
-    def delete_contact(self, name):                      # HERE IS A QUESTION WITH NAMING "delete"
+    def delete_contact(self, name):
         if name in self.data:
             del self.data[name]
         else:
@@ -409,14 +409,7 @@ class NoteBook(UserDict):
         for note_id, note in self.data.items():
             table.add_row([note_id, note.to_dict()["Note"], note.to_dict()["Tags"], note.to_dict()["Creation Date"]])
         return table
-
-# Function to handle tab completion for notes
-#def note_completer(text, state):
-#	options = [str(note) for note in notebook.data.values() if str(note).startswith(text)]
-#	if state < len(options):
-#		return options[state]
-#	else:
-#		return None
+        
 
 # Add a new note to the notebook                        Am I right?
 @input_error
