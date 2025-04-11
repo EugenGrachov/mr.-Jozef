@@ -30,7 +30,6 @@ Hi, I am **mr.Jozef** — a smart CLI bot that will help you manage contacts and
   -  Recognizing user input and guessing the intended command
   -  Suggesting the closest command when input is unclear
 
-
 ---
 
 ## 🧑‍💻 User Guide
@@ -43,24 +42,32 @@ Hi, I am **mr.Jozef** — a smart CLI bot that will help you manage contacts and
 4. Run the program using the following command:
 
 ```bash
-python assistant.py
+python jozef.py
 ```
 
 5. The program will start in the Command-Line Interface (CLI). You will see the available commands and functions.
 
 ### Main commands:
+- **Hello**
+  ```
+  hello
+  ``` 
 
-- **Add a new contact:**
+- **Add contact:**
   ```
-  add_contact <name> <address> <phone> <email> <birthday>
+  add contact <name> <address> <phone> <email> <birthday>
   ```
-- **Edit a contact:**
+- **Change contact's phone number**
   ```
-  edit_contact <id> <new data>
+  change contact <name> <old_phone> <new_phone>
   ```
-- **Search for a contact by name:**
+- **Show contact's phone number:**
   ```
-  search_contact <name>
+  phone <name>
+  ```
+  - **Show all contacts:**
+  ```
+  all
   ```
 - **Display contacts with upcoming birthdays within a specified number of days:**
   ```
@@ -86,13 +93,11 @@ python assistant.py
 
 ## 🛠️ Technologies
 
-- Python 3.10+
+- Python 3.9+
 - Standard Libraries: `pickle`, `datetime`, `difflib`, `re`
 - Object-Oriented Programming: classes `Contact`, `Note`, `Phone`, `Email`, `Birthday`, `Address`
 - Data persistence with file storage
 - CLI interaction
-
----
 
 ---
 
@@ -103,10 +108,6 @@ git clone https://github.com/EugenGrachov/mr.-Jozef.git
 cd mr.-Jozef
 python jozef.py
 ```
-
-> Make sure that Python 3.9 + is installed and all dependencies from `requirements.txt`.
-
----
 
 ## 📂 Project structure
 
@@ -123,10 +124,13 @@ python jozef.py
 
 Project created as part of training from [GOIT] (https ://goit.global)
 * * Oldies Project Team * *
-Chuntu Artem
-Hrachov Yevhenii
-Polovinkin Oleksii
-Vorobyov Kirill
+
+| Name                | Role         |
+|---------------------|--------------|
+| Hrachov Yevhenii    | Teamlead     |
+| Vorobyov Kirill     | Scrummaster  |
+| Chuntu Artem        | Developer    |
+| Polovinkin Oleksii  | Developer    |
 ---
 
 ## 💡 License
