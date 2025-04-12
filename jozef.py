@@ -1,4 +1,4 @@
-import readline
+import pyreadline
 from collections import UserDict
 import re
 from datetime import datetime, timedelta
@@ -32,6 +32,7 @@ class Phone(Field):
         super().__init__(value)
 
     # Static method to validate phone number format
+@staticmethod
 def is_valid_phone(phone):
 
         # old validation:
@@ -263,7 +264,7 @@ class AddressBook(UserDict):
         return self.data.get(name)
 
     # Delete a contact from the address book by name 
-    def delete_contact(self, name):
+    def delete(self, name):
         if name in self.data:
             del self.data[name]
         else:
@@ -607,9 +608,7 @@ def load_data(filename="addressbook.pkl"):
     try:
         with open(filename, "rb") as f:
             return pickle.load(f)
-    except ( FileNotFoundError,
-            EOFError,
-            pickle.UnpicklingError ):
+    except (FileNotFoundError):
         return AddressBook()
 
 
@@ -688,8 +687,8 @@ def main():
     notebook = load_notes()
     print("Welcome to the assistant bot!")
     display_commands()
-    readline.set_completer(completer)
-    readline.parse_and_bind("tab: complete")
+    pyreadline.set_completer(completer)
+    pyreadline.parse_and_bind("tab: complete")
     while True:
         user_input = input("Please input command: ").strip()
         if not user_input:
@@ -737,7 +736,7 @@ def main():
             else:
                 print(result)
         elif command == "delete":
-            print(delete_contact(args, book))
+            print(delete(args, book))
         elif command == "add-birthday":
             print(add_birthday(args, book))
         elif command == "birthdays":
