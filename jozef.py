@@ -32,9 +32,16 @@ class Phone(Field):
         super().__init__(value)
 
     # Static method to validate phone number format
-    @staticmethod
-    def is_valid_phone(phone):
-        return re.fullmatch(r"\d{10}", phone) is not None
+def is_valid_phone(phone):
+
+        # old validation:
+        #return re.fullmatch(r"\d{10}", phone) is not None
+
+        if not phone or not isinstance(phone, str):
+            return False
+        phone_international = r'^\+?[0-9]{1,3}?[-. ]?\(?\d{1,4}?\)?[-. ]?\d{1,4}[-. ]?\d{1,4}[-. ]?\d{1,9}$'
+        phone_local = r'^\d{10}$'
+        return bool(re.match(phone_international, phone)) or bool(re.fullmatch(phone_local, phone))
 
 
 class Email(Field):
@@ -60,12 +67,85 @@ class Address(Field):
 class Birthday(Field):
     def __init__(self, value):
         try:
-            self.value = datetime.strptime(value, "%d.%m.%Y").date()
+            self.value = dt.strptime(value, "%d.%m.%Y").date()
         except ValueError:
             raise ValueError("Invalid date format. Use DD.MM.YYYY")
 
     def __str__(self):
         return self.value.strftime("%d.%m.%Y")
+
+
+class Note:
+    def __init__(self, text):
+        self.text = text
+        self.title = title if title else text[:30]
+        self.tags = []
+        self.creation_date = dt.now()
+
+    def str(self):
+        return f"Заметка: {self.title}\n{self.text}"
+
+    def add_tag(self, tag):
+        self.tags.append(Tag(tag))
+
+    def remove_tag(self, tag):
+        for t in self.tags:
+            if t.value == tag:
+                self.tags.remove(t)
+                return
+        raise ValueError(f"Tag {tag} not found.")
+
+    def __str__(self):
+        tags_str = f", tags: {'; '.join(t.value for t in self.tags)}" if self.tags else ""
+        date_str = self.creation_date.strftime("%d.%m.%Y %H:%M:%S")
+        return f"Note: {self.text}, created at: {date_str}{tags_str}"
+
+    # Convert note to dictionary for PrettyTable
+    def to_dict(self):
+        return {
+            "Note": self.text,
+            "Tags": "; ".join(t.value for t in self.tags),
+            "Creation Date": self.creation_date.strftime("%d.%m.%Y %H:%M:%S")
+        }
+
+
+class NoteBook(UserDict):
+
+    def add_note(self, note):
+        self.data[len(self.data) + 1] = note
+
+    def delete_note(self, note_id):
+        if note_id in self.data:
+            del self.data[note_id]
+        else:
+            raise KeyError(f"Note {note_id} not found.")
+
+    def find_by_tag(self, tag):
+        found_notes = []
+        for note in self.data.values():
+            for t in note.tags:
+                if t.value == tag:
+                    found_notes.append(note)
+                    break
+        return found_notes
+
+    # Convert notebook to PrettyTable format
+    def to_table(self):
+        table = PrettyTable()
+        table.field_names = ["ID", "Note", "Tags", "Creation Date"]
+        for note_id, note in self.data.items():
+            table.add_row([note_id, note.to_dict()["Note"], note.to_dict()["Tags"], note.to_dict()["Creation Date"]])
+        return table
+
+
+class Tag(Field):
+    def __init__(self, value):
+        if not value or not isinstance(value, str):
+            raise ValueError("Tag must be a non-empty string")
+        super().__init__(value)
+
+    def __str__(self):
+        return str(self.value)
 
 
 # Class to represent a contact record
@@ -191,7 +271,7 @@ class AddressBook(UserDict):
 
     # Get upcoming birthdays within 7 days
     def get_upcoming_birthdays(self):
-        today = dt.datetime.now().date()
+        today = datetime.datetime.now().date()
         upcoming_birthdays = []
         for record in self.data.values():
             if record.birthday:
@@ -304,10 +384,10 @@ def add_birthday(args, book):
         raise ValueError("Give me name and birthday please.")
     name, birthday = args[0], args[1]
     try:
-        datetime.strptime(birthday, "%d.%m.%Y")
+        dt.strptime(birthday, "%d.%m.%Y")
     except ValueError:
         raise ValueError("Invalid date format. Use DD.MM.YYYY.")
-    record = book.find_contact(name)
+    record = book.find(name)
     if not record:
         raise KeyError(f"Contact {name} not found.")
     record.add_birthday(birthday)
@@ -320,7 +400,6 @@ def all_contacts(book):
         return "No contacts saved yet."
     else:
         return book.to_table()
-    
 
 
 # Show birthday by name
@@ -338,162 +417,6 @@ def show_birthday(args, book):
         return f"No birthday set for {name}."
 
 
-# Function to save the address book to a file
-def save_data(book, filename="addressbook.pkl"):
-    with open(filename, "wb") as f:
-        pickle.dump(book, f)
-
-
-# Function to load the address book from a file
-def load_data(filename="addressbook.pkl"):
-    try:
-        with open(filename, "rb") as f:
-            return pickle.load(f)
-    except (FileNotFoundError, EOFError, pickle.UnpicklingError):
-        return AddressBook()
-
-
-COMMANDS = [
-    "hello",
-    "add",
-    "change",
-    "phone",
-    "add-email",
-    "change-email",
-    "delete-email",
-    "get-email",
-    "add-address",
-	"change-address",
-	"delete-address",
-	"get-address",
-    "all",
-    "delete",
-    "add-birthday",
-    "birthdays",
-    "show-birthday",
-    "add-note",
-    "delete-note",
-    "add-tag",
-    "delete-tag",
-    "find-tag",
-    "show-notes",
-    "exit",
-    "close",
-]
-
-
-# Function to handle tab completion for commands
-def completer(text, state):
-    options = [cmd for cmd in COMMANDS if cmd.startswith(text)]
-    if state < len(options):
-        return options[state]
-    else:
-        return None
-
-# Function to display available commands in a table format
-def display_commands():
-    table = PrettyTable()
-    table.field_names = ["Command", "Description"]
-    table.add_rows([
-        ["hello", "Display a greeting message"],
-        ["add", "Add a new contact"],
-        ["change", "Change an existing contact's phone number"],
-        ["phone", "Show a contact's phone number"],
-        ["add-email", "Add an email to a contact"],
-        ["change-email", "Change a contact's email"],
-        ["delete-email", "Delete a contact's email"],
-        ["get-email", "Show a contact's email"],
-        ["add-address", "Add an address to a contact"],
-        ["change-address", "Change a contact's address"],
-        ["delete-address", "Delete a contact's address"],
-        ["get-address", "Show a contact's address"],
-        ["all", "Show all contacts"],
-        ["delete", "Delete a contact"],
-        ["add-birthday", "Add a birthday to a contact"],
-        ["birthdays", "Show upcoming birthdays"],
-        ["show-birthday", "Show a contact's birthday"],
-        ["add-note", "Add a new note"],
-        ["delete-note", "Delete a note"],
-        ["add-tag", "Add a tag to a note"],
-        ["delete-tag", "Delete a tag from a note"],
-        ["find-tag", "Find notes by tag"],
-        ["show-notes", "Show all notes"],
-        ["exit/close", "Exit the program"],
-    ])
-    print(table)
-
-# Class for Tag field validation
-class Tag(Field):
-    pass
-
-# Class to represent a note
-class Note:
-    def __init__(self, text):
-        self.text = text
-        self.tags = []
-        self.creation_date = datetime.now()
-
-    # Add a tag to the note
-    def add_tag(self, tag):
-        self.tags.append(Tag(tag))
-
-    # Remove a tag from the note
-    def remove_tag(self, tag):
-        for t in self.tags:
-            if t.value == tag:
-                self.tags.remove(t)
-                return
-        raise ValueError(f"Tag {tag} not found.")
-
-    # String representation of the note
-    def __str__(self):
-        tags_str = f", tags: {'; '.join(t.value for t in self.tags)}" if self.tags else ""
-        date_str = self.creation_date.strftime("%d.%m.%Y %H:%M:%S")
-        return f"Note: {self.text}, created at: {date_str}{tags_str}"
-
-    # Convert note to dictionary for PrettyTable
-    def to_dict(self):
-        return {
-            "Note": self.text,
-            "Tags": "; ".join(t.value for t in self.tags),
-            "Creation Date": self.creation_date.strftime("%d.%m.%Y %H:%M:%S")
-        }
-
-
-# Class to represent a notebook
-class NoteBook(UserDict):
-    
-    # Add a new note to the notebook
-    def add_note(self, note):
-        self.data[len(self.data) + 1] = note
-
-    # Delete a note by ID
-    def delete_note(self, note_id):
-        if note_id in self.data:
-            del self.data[note_id]
-        else:
-            raise KeyError(f"Note {note_id} not found.")
-
-    # Search for notes by tag
-    def find_by_tag(self, tag):
-        found_notes = []
-        for note in self.data.values():
-            for t in note.tags:
-                if t.value == tag:
-                    found_notes.append(note)
-                    break
-        return found_notes
-
-    # Convert notebook to PrettyTable format
-    def to_table(self):
-        table = PrettyTable()
-        table.field_names = ["ID", "Note", "Tags", "Creation Date"]
-        for note_id, note in self.data.items():
-            table.add_row([note_id, note.to_dict()["Note"], note.to_dict()["Tags"], note.to_dict()["Creation Date"]])
-        return table
-        
-
-# Add a new note to the notebook                        Am I right?
 @input_error
 def add_note(args, notebook):
     if len(args) < 1:
@@ -504,7 +427,6 @@ def add_note(args, notebook):
     return "Note added."
 
 
-# Delete a note by ID
 @input_error
 def delete_note(args, notebook):
     if len(args) < 1:
@@ -514,7 +436,6 @@ def delete_note(args, notebook):
     return f"Note {note_id} deleted."
 
 
-# Add a tag to a note
 @input_error
 def add_tag(args, notebook):
     if len(args) < 2:
@@ -526,7 +447,6 @@ def add_tag(args, notebook):
     return "Tag added."
 
 
-# Delete a tag from a note
 @input_error
 def delete_tag(args, notebook):
     if len(args) < 2:
@@ -562,13 +482,12 @@ def show_notes(notebook):
         return notebook.to_table()
 
 
-# Add the notes to a file
 def save_notes(notebook, filename="notes.pkl"):
     with open(filename, "wb") as f:
         pickle.dump(notebook, f)
 
 
-# Loads the notes from a file
+@input_error
 def load_notes(filename="notes.pkl"):
     try:
         with open(filename, "rb") as f:
@@ -677,7 +596,93 @@ def get_address(args, book):
         return f"No address set for {name}."
 
 
-# Main function to interact with the user
+# Function to save the address book to a file
+def save_data(book, filename="addressbook.pkl"):
+    with open(filename, "wb") as f:
+        pickle.dump(book, f)
+
+
+# Function to load the address book from a file
+def load_data(filename="addressbook.pkl"):
+    try:
+        with open(filename, "rb") as f:
+            return pickle.load(f)
+    except ( FileNotFoundError,
+            EOFError,
+            pickle.UnpicklingError ):
+        return AddressBook()
+
+
+COMMANDS = [
+    "hello",
+    "add",
+    "change",
+    "phone",
+    "add-email",
+    "change-email",
+    "delete-email",
+    "get-email",
+    "add-address",
+	"change-address",
+	"delete-address",
+	"get-address",
+    "all",
+    "delete",
+    "add-birthday",
+    "birthdays",
+    "show-birthday",
+    "add-note",
+    "delete-note",
+    "add-tag",
+    "delete-tag",
+    "find-tag",
+    "show-notes",
+    "exit",
+    "close",
+]
+
+
+# Function to handle tab completion for commands
+def completer(text, state):
+    options = [cmd for cmd in COMMANDS if cmd.startswith(text)]
+    if state < len(options):
+        return options[state]
+    else:
+        return None
+
+# Function to display available commands in a table format
+def display_commands():
+    table = PrettyTable()
+    table.field_names = ["Command", "Description"]
+    table.add_rows([
+        ["hello", "Display a greeting message"],
+        ["add", "Add a new contact"],
+        ["change", "Change an existing contact's phone number"],
+        ["phone", "Show a contact's phone number"],
+        ["add-email", "Add an email to a contact"],
+        ["change-email", "Change a contact's email"],
+        ["delete-email", "Delete a contact's email"],
+        ["get-email", "Show a contact's email"],
+        ["add-address", "Add an address to a contact"],
+        ["change-address", "Change a contact's address"],
+        ["delete-address", "Delete a contact's address"],
+        ["get-address", "Show a contact's address"],
+        ["all", "Show all contacts"],
+        ["delete", "Delete a contact"],
+        ["add-birthday", "Add a birthday to a contact"],
+        ["birthdays", "Show upcoming birthdays"],
+        ["show-birthday", "Show a contact's birthday"],
+        ["add-note", "Add a new note"],
+        ["delete-note", "Delete a note"],
+        ["add-tag", "Add a tag to a note"],
+        ["delete-tag", "Delete a tag from a note"],
+        ["find-tag", "Find notes by tag"],
+        ["show-notes", "Show all notes"],
+        ["exit/close", "Exit the program"],
+    ])
+    print(table)
+
+
 def main():
     book = load_data()
     notebook = load_notes()
@@ -736,16 +741,25 @@ def main():
         elif command == "add-birthday":
             print(add_birthday(args, book))
         elif command == "birthdays":
-            upcoming_birthdays = book.get_upcoming_birthdays()
+            if args:
+                try:
+                    days = int(args[0])
+                    upcoming_birthdays = book.get_upcoming_birthdays(days)
+                except ValueError:
+                    print("Invalid number of days. Please enter an integer.")
+                    continue
+            else:
+                upcoming_birthdays = book.get_upcoming_birthdays()
+
             if upcoming_birthdays:
                 table = PrettyTable()
                 table.field_names = ["Name", "Birthday"]
                 for name, birthday in upcoming_birthdays:
                     table.add_row([name, birthday])
-                print("Upcoming birthdays in the next 7 days:")
+                print(f"Upcoming birthdays in the next {days if args else 7} days:")
                 print(table)
             else:
-                print("No upcoming birthdays in the next 7 days.")
+                print(f"No upcoming birthdays in the next {days if args else 7} days.")
         elif command == "show-birthday":
             print(show_birthday(args, book))
         elif command == "add-note":
