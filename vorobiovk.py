@@ -13,10 +13,8 @@ class Field:
     def __str__(self):
         return str(self.value)
 
-
 class Name(Field):
     pass
-
 
 class Phone(Field):
     def __init__(self, value):
@@ -28,7 +26,6 @@ class Phone(Field):
     def is_valid_phone(phone):
         return re.fullmatch(r"\d{10}", phone) is not None
 
-
 class Birthday(Field):
     def __init__(self, value):
         try:
@@ -38,7 +35,6 @@ class Birthday(Field):
 
     def __str__(self):
         return self.value.strftime("%d.%m.%Y")
-
 
 class Record:
     def __init__(self, name):
@@ -88,7 +84,6 @@ class Record:
             "Birthday": str(self.birthday) if self.birthday else "N/A",
         }
 
-
 class AddressBook(UserDict):
     def add_record(self, record):
         self.data[record.name.value] = record
@@ -102,7 +97,28 @@ class AddressBook(UserDict):
         else:
             raise KeyError(f"Contact {name} not found.")
 
-    def get_upcoming_birthdays(self):
+    # def get_upcoming_birthdays(self):
+    #     today = dt.datetime.now().date()
+    #     upcoming_birthdays = []
+    #     for record in self.data.values():
+    #         if record.birthday:
+    #             birthday = record.birthday.value
+    #             birthday_this_year = birthday.replace(year=today.year)
+    #             if birthday_this_year < today:
+    #                 birthday_this_year = birthday.replace(year=today.year + 1)
+    #             delta = birthday_this_year - today
+    #             if delta.days < 7:
+    #                 upcoming_birthdays.append((record.name.value, birthday_this_year.strftime("%d.%m.%Y")))
+    #     return upcoming_birthdays
+    
+    # def to_table(self):
+    #     table = PrettyTable()
+    #     table.field_names = ["Name", "Phones", "Birthday"]
+    #     for record in self.data.values():
+    #         table.add_row(record.to_dict().values())
+    #     return table
+
+    def get_upcoming_birthdays(self, days=7):
         today = dt.datetime.now().date()
         upcoming_birthdays = []
         for record in self.data.values():
@@ -112,7 +128,7 @@ class AddressBook(UserDict):
                 if birthday_this_year < today:
                     birthday_this_year = birthday.replace(year=today.year + 1)
                 delta = birthday_this_year - today
-                if delta.days < 7:
+                if delta.days < days:
                     upcoming_birthdays.append((record.name.value, birthday_this_year.strftime("%d.%m.%Y")))
         return upcoming_birthdays
     
@@ -121,8 +137,17 @@ class AddressBook(UserDict):
         table.field_names = ["Name", "Phones", "Birthday"]
         for record in self.data.values():
             table.add_row(record.to_dict().values())
-        return table
+        return table    
 
+# def parse_input(user_input):
+#     if not user_input.strip():
+#         return None, []
+#     try:
+#         cmd, *args = user_input.split()
+#         cmd = cmd.strip().lower()
+#         return cmd, args
+#     except ValueError:
+#         return None, []
 
 def parse_input(user_input):
     if not user_input.strip():
@@ -133,7 +158,6 @@ def parse_input(user_input):
         return cmd, args
     except ValueError:
         return None, []
-
 
 def input_error(func):
     def inner(*args, **kwargs):
@@ -149,7 +173,6 @@ def input_error(func):
             return "Invalid input type."
 
     return inner
-
 
 @input_error
 def add_contact(args, book):
@@ -179,7 +202,6 @@ def change_contact(args, book):
     record.edit_phone(old_phone, new_phone)
     return "Contact updated."
 
-
 @input_error
 def get_contact(args, book):
     if len(args) < 1:
@@ -194,7 +216,6 @@ def get_contact(args, book):
     table.add_row(record.to_dict().values())
     return table
 
-
 @input_error
 def delete_contact(args, book):
     if len(args) < 1:
@@ -202,7 +223,6 @@ def delete_contact(args, book):
     name = args[0]
     book.delete(name)
     return f"Contact {name} deleted."
-
 
 @input_error
 def add_birthday(args, book):
@@ -215,13 +235,11 @@ def add_birthday(args, book):
     record.add_birthday(birthday)
     return "Birthday added."
 
-
 def all_contacts(book):
     if not book.data:
         return "No contacts saved yet."
     else:
         return book.to_table()
-
 
 @input_error
 def show_birthday(args, book):
@@ -251,7 +269,7 @@ def load_data(filename="addressbook.pkl"):
 
 
 COMMANDS = [
-     "hello",
+    "hello",
     "add",
     "change",
     "phone",
@@ -269,7 +287,6 @@ COMMANDS = [
     "exit",
     "close",
 ]
-
 
 def completer(text, state):
     options = [cmd for cmd in COMMANDS if cmd.startswith(text)]
@@ -368,7 +385,6 @@ def add_note(args, notebook):
     notebook.add_note(note)
     return "Note added."
 
-
 @input_error
 def delete_note(args, notebook):
     if len(args) < 1:
@@ -388,7 +404,6 @@ def add_tag(args, notebook):
     notebook.data[note_id].add_tag(tag)
     return "Tag added."
 
-
 @input_error
 def delete_tag(args, notebook):
     if len(args) < 2:
@@ -398,7 +413,6 @@ def delete_tag(args, notebook):
         raise KeyError(f"Note {note_id} not found.")
     notebook.data[note_id].remove_tag(tag)
     return "Tag deleted."
-
 
 @input_error
 def find_by_tag(args, notebook):
@@ -414,7 +428,6 @@ def find_by_tag(args, notebook):
         table.add_row([note.to_dict()["Note"], note.to_dict()["Tags"]])
     return table
 
-
 def show_notes(notebook):
     if not notebook.data:
         return "No notes saved yet."
@@ -425,15 +438,12 @@ def save_notes(notebook, filename="notes.pkl"):
     with open(filename, "wb") as f:
         pickle.dump(notebook, f)
 
-
 def load_notes(filename="notes.pkl"):
     try:
         with open(filename, "rb") as f:
             return pickle.load(f)
     except FileNotFoundError:
         return NoteBook()
-
-
 
 def main():
     book = load_data()
@@ -474,14 +484,31 @@ def main():
             print(delete_contact(args, book))
         elif command == "add-birthday":
             print(add_birthday(args, book))
+        # elif command == "birthdays":
+        #     upcoming_birthdays = book.get_upcoming_birthdays()
+        #     if upcoming_birthdays:
+        #         table = PrettyTable()
+        #         table.field_names = ["Name", "Birthday"]
+        #         for name, birthday in upcoming_birthdays:
+        #             table.add_row([name, birthday])
+        #         print("Upcoming birthdays in the next 7 days:")
+        #         print(table)
         elif command == "birthdays":
-            upcoming_birthdays = book.get_upcoming_birthdays()
+            if args:
+                try:
+                    days = int(args[0])
+                    upcoming_birthdays = book.get_upcoming_birthdays(days)
+                except ValueError:
+                    print("Invalid number of days. Please enter an integer.")
+                    continue
+            else:
+                upcoming_birthdays = book.get_upcoming_birthdays()
             if upcoming_birthdays:
                 table = PrettyTable()
                 table.field_names = ["Name", "Birthday"]
                 for name, birthday in upcoming_birthdays:
                     table.add_row([name, birthday])
-                print("Upcoming birthdays in the next 7 days:")
+                print(f"Upcoming birthdays in the next {days if args else 7} days:")
                 print(table)
             else:
                 print("No upcoming birthdays in the next 7 days.")
