@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timedelta
 import datetime as dt
 import pickle
-from prettytable import PrettyTable                # HERE IS A QUESTION WITH IMPORTING "prettytable"
+from prettytable import PrettyTable
 
 
 # Base class for different fields like Name, Phone, Birthday
@@ -18,12 +18,10 @@ class Field:
 
 # Class for Name field validation
 class Name(Field):
-# Currently no validation in the constructor, but it can be added if needed in the future
-    # def __init__(self, value):
-    #     if not value or not isinstance(value, str):
-    #         raise ValueError("Name must be a non-empty string")
-    #     super().__init__(value)
-    pass
+    def __init__(self, value):
+        if not value or not isinstance(value, str):
+            raise ValueError("Name must be a non-empty string")
+        super().__init__(value)
 
 
 # Class for Phone field validation
@@ -37,7 +35,26 @@ class Phone(Field):
     @staticmethod
     def is_valid_phone(phone):
         return re.fullmatch(r"\d{10}", phone) is not None
-    
+
+
+class Email(Field):
+    def __init__(self, value):
+        if not self.is_valid_email(value):
+            raise ValueError("Invalid email format.")
+        super().__init__(value)
+
+    # Static method to validate email format
+    @staticmethod
+    def is_valid_email(email):
+        return re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email) is not None
+
+
+class Address(Field):
+    def __init__(self, value):
+        if not value or not isinstance(value, str):
+            raise ValueError("Address must be a non-empty string.")
+        super().__init__(value)
+
 
 # Class for Birthday field validation
 class Birthday(Field):
@@ -57,6 +74,8 @@ class Record:
         self.name = Name(name)
         self.phones = []
         self.birthday = None
+        self.email = None
+        self.address = None
 
     # Add a phone number to the record
     def add_phone(self, phone):
@@ -89,6 +108,49 @@ class Record:
             if p.value == phone:
                 return p
         return None
+    # Add an email to the record
+    def add_email(self, email):
+        if self.email:
+            raise ValueError("Email already exists. Use edit_email to change it.")
+        self.email = Email(email)
+
+    # Edit the existing email
+    def edit_email(self, new_email):
+        if not self.email:
+            raise ValueError("No email to edit. Use add_email to add one.")
+        self.email = Email(new_email)
+
+    # Remove the email
+    def remove_email(self):
+        if not self.email:
+            raise ValueError("No email to remove.")
+        self.email = None
+
+    # Search for an email
+    def find_email(self):
+        return self.email
+    
+    # Add an address to the record
+    def add_address(self, address):
+        if self.address:
+            raise ValueError("Address already exists. Use edit_address to change it.")
+        self.address = Address(address)
+
+    # Edit the existing address
+    def edit_address(self, new_address):
+        if not self.address:
+            raise ValueError("No address to edit. Use add_address to add one.")
+        self.address = Address(new_address)
+
+    # Remove the address
+    def remove_address(self):
+        if not self.address:
+            raise ValueError("No address to remove.")
+        self.address = None
+
+    # Search for an address
+    def find_address(self):
+        return self.address
 
     # Add a birthday to the record
     def add_birthday(self, birthday):
@@ -97,7 +159,9 @@ class Record:
     # String representation of the record
     def __str__(self):
         birthday_str = f", birthday: {self.birthday}" if self.birthday else ""
-        return f"Contact name: {self.name}, phones: {'; '.join(p.value for p in self.phones)}{birthday_str}"
+        email_str = f", email: {self.email}" if self.email else ""
+        address_str = f", address: {self.address}" if self.address else ""
+        return f"Contact name: {self.name}, phones: {'; '.join(p.value for p in self.phones)}, birthday: {birthday_str}, E-mail: {email_str}, address: {address_str}"
 
     # Convert record to dictionary for PrettyTable
     def to_dict(self):
@@ -105,6 +169,8 @@ class Record:
             "Name": self.name.value,
             "Phones": "; ".join(p.value for p in self.phones),
             "Birthday": str(self.birthday) if self.birthday else "N/A",
+            "Email": str(self.email) if self.email else "N/A",
+            "Address": str(self.address) if self.address else "N/A",
         }
 
 # Address book class to hold all records
@@ -113,11 +179,11 @@ class AddressBook(UserDict):
         self.data[record.name.value] = record
 
     # Find a contact by name at the address book
-    def find_contact(self, name):                      # HERE IS A QUESTION WITH NAMING "find"
+    def find(self, name):
         return self.data.get(name)
 
     # Delete a contact from the address book by name 
-    def delete_contact(self, name):                      # HERE IS A QUESTION WITH NAMING "delete"
+    def delete_contact(self, name):
         if name in self.data:
             del self.data[name]
         else:
@@ -131,13 +197,9 @@ class AddressBook(UserDict):
             if record.birthday:
                 birthday = record.birthday.value
                 birthday_this_year = birthday.replace(year=today.year)
-
-                # If the birthday has already passed, get the next year's birthday
                 if birthday_this_year < today:
                     birthday_this_year = birthday.replace(year=today.year + 1)
                 delta = birthday_this_year - today
-
-                # Check if the birthday is on a weekend (Saturday/Sunday), and shift to Monday
                 if delta.days < 7:
                     upcoming_birthdays.append((record.name.value, birthday_this_year.strftime("%d.%m.%Y")))
         return upcoming_birthdays
@@ -145,7 +207,7 @@ class AddressBook(UserDict):
     # Convert address book to PrettyTable format for display
     def to_table(self):
         table = PrettyTable()
-        table.field_names = ["Name", "Phones", "Birthday"]
+        table.field_names = ["Name", "Phones", "Birthday", "Email"]
         for record in self.data.values():
             table.add_row(record.to_dict().values())
         return table
@@ -241,7 +303,11 @@ def add_birthday(args, book):
     if len(args) < 2:
         raise ValueError("Give me name and birthday please.")
     name, birthday = args[0], args[1]
-    record = book.find(name)
+    try:
+        datetime.strptime(birthday, "%d.%m.%Y")
+    except ValueError:
+        raise ValueError("Invalid date format. Use DD.MM.YYYY.")
+    record = book.find_contact(name)
     if not record:
         raise KeyError(f"Contact {name} not found.")
     record.add_birthday(birthday)
@@ -283,7 +349,7 @@ def load_data(filename="addressbook.pkl"):
     try:
         with open(filename, "rb") as f:
             return pickle.load(f)
-    except FileNotFoundError:
+    except (FileNotFoundError, EOFError, pickle.UnpicklingError):
         return AddressBook()
 
 
@@ -292,6 +358,14 @@ COMMANDS = [
     "add",
     "change",
     "phone",
+    "add-email",
+    "change-email",
+    "delete-email",
+    "get-email",
+    "add-address",
+	"change-address",
+	"delete-address",
+	"get-address",
     "all",
     "delete",
     "add-birthday",
@@ -325,6 +399,14 @@ def display_commands():
         ["add", "Add a new contact"],
         ["change", "Change an existing contact's phone number"],
         ["phone", "Show a contact's phone number"],
+        ["add-email", "Add an email to a contact"],
+        ["change-email", "Change a contact's email"],
+        ["delete-email", "Delete a contact's email"],
+        ["get-email", "Show a contact's email"],
+        ["add-address", "Add an address to a contact"],
+        ["change-address", "Change a contact's address"],
+        ["delete-address", "Delete a contact's address"],
+        ["get-address", "Show a contact's address"],
         ["all", "Show all contacts"],
         ["delete", "Delete a contact"],
         ["add-birthday", "Add a birthday to a contact"],
@@ -409,14 +491,7 @@ class NoteBook(UserDict):
         for note_id, note in self.data.items():
             table.add_row([note_id, note.to_dict()["Note"], note.to_dict()["Tags"], note.to_dict()["Creation Date"]])
         return table
-
-# Function to handle tab completion for notes
-#def note_completer(text, state):
-#	options = [str(note) for note in notebook.data.values() if str(note).startswith(text)]
-#	if state < len(options):
-#		return options[state]
-#	else:
-#		return None
+        
 
 # Add a new note to the notebook                        Am I right?
 @input_error
@@ -502,6 +577,105 @@ def load_notes(filename="notes.pkl"):
         return NoteBook()
 
 
+@input_error
+def add_email(args, book):
+    if len(args) < 2:
+        raise ValueError("Give me name and email please.")
+    name, email = args[0], args[1]
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.add_email(email)
+    return "Email added."
+
+
+@input_error
+def change_email(args, book):
+    if len(args) < 2:
+        raise ValueError("Give me name and new email please.")
+    name, new_email = args[0], args[1]
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.edit_email(new_email)
+    return "Email updated."
+
+
+@input_error
+def delete_email(args, book):
+    if len(args) < 1:
+        raise ValueError("Give me name please.")
+    name = args[0]
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.remove_email()
+    return "Email deleted."
+
+
+@input_error
+def get_email(args, book):
+    if len(args) < 1:
+        raise ValueError("Give me name please.")
+    name = args[0]
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    if record.email:
+        return f"{name}'s email is {record.email}"
+    else:
+        return f"No email set for {name}."
+
+
+@input_error
+def add_address(args, book):
+    if len(args) < 2:
+        raise ValueError("Give me name and address please.")
+    name, address = args[0], " ".join(args[1:])
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.add_address(address)
+    return "Address added."
+
+
+@input_error
+def change_address(args, book):
+    if len(args) < 2:
+        raise ValueError("Give me name and new address please.")
+    name, new_address = args[0], " ".join(args[1:])
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.edit_address(new_address)
+    return "Address updated."
+
+
+@input_error
+def delete_address(args, book):
+    if len(args) < 1:
+        raise ValueError("Give me name please.")
+    name = args[0]
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.remove_address()
+    return "Address deleted."
+
+
+@input_error
+def get_address(args, book):
+    if len(args) < 1:
+        raise ValueError("Give me name please.")
+    name = args[0]
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    if record.address:
+        return f"{name}'s address is {record.address}"
+    else:
+        return f"No address set for {name}."
+
 
 # Main function to interact with the user
 def main():
@@ -535,6 +709,22 @@ def main():
                 print(result)
             else:
                 print(result)
+        elif command == "add-email":
+            print(add_email(args, book))
+        elif command == "change-email":
+            print(change_email(args, book))
+        elif command == "delete-email":
+            print(delete_email(args, book))
+        elif command == "get-email":
+            print(get_email(args, book))
+        elif command == "add-address":
+            print(add_address(args, book))
+        elif command == "change-address":
+            print(change_address(args, book))
+        elif command == "delete-address":
+            print(delete_address(args, book))
+        elif command == "get-address":
+            print(get_address(args, book))
         elif command == "all":
             result = all_contacts(book)
             if isinstance(result, PrettyTable):
