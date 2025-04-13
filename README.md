@@ -38,6 +38,8 @@ Hi, I am **mr.Jozef** — a smart CLI bot that will help you manage contacts and
 ---
 
 ---
+## Install Python 3.9+
+download and install https://www.python.org/ftp/python/3.9.0/python-3.9.0rc1.exe
 
 ## 🛠️ Installation and launch
 
@@ -46,6 +48,9 @@ git clone https://github.com/CyberDat/First_repo.git
 cd First_repo
 python main.py
 ```
+
+## activate and install requirements 
+all in .venv directory
 
 > Make sure that Python 3.9 + is installed and all dependencies from `requirements.txt`.
 
