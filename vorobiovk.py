@@ -351,87 +351,76 @@ def main():
     display_commands()
     readline.set_completer(completer)
     readline.parse_and_bind("tab: complete")
+
+    command_handlers = {
+        "hello": lambda args: (print("How can I help you?"), display_commands())[0],
+        "add": lambda args: add_contact(args, book),
+        "change": lambda args: change_contact(args, book),
+        "phone": lambda args: print_result(get_contact(args, book)),
+        "all": lambda args: print_result(all_contacts(book)),
+        "delete": lambda args: delete_contact(args, book),
+        "add-birthday": lambda args: add_birthday(args, book),
+        "birthdays": lambda args: handle_birthdays(args, book),
+        "show-birthday": lambda args: show_birthday(args, book),
+        "add-note": lambda args: add_note(args, notebook),
+        "delete-note": lambda args: delete_note(args, notebook),
+        "add-tag": lambda args: add_tag(args, notebook),
+        "delete-tag": lambda args: delete_tag(args, notebook),
+        "find-tag": lambda args: print_result(find_by_tag(args, notebook)),
+        "show-notes": lambda args: print_result(show_notes(notebook)),
+        "exit": lambda args: exit_program(book, notebook),
+        "close": lambda args: exit_program(book, notebook),
+    }
+
     while True:
         user_input = input("Please input command: ").strip()
         if not user_input:
             print("Please enter a command.")
             continue
+
         command, args = parse_input(user_input)
         if command is None:
             print("Invalid input format.")
             continue
-        if command == "hello":
-            print("How can I help you?")
-            display_commands()
-        elif command == "add":
-            print(add_contact(args, book))
-        elif command == "change":
-            print(change_contact(args, book))
-        elif command == "phone":
-            result = get_contact(args, book)
-            if isinstance(result, PrettyTable):
+
+        if command in command_handlers:
+            result = command_handlers[command](args)
+            if result is not None:
                 print(result)
-            else:
-                print(result)
-        elif command == "all":
-            result = all_contacts(book)
-            if isinstance(result, PrettyTable):
-                print(result)
-            else:
-                print(result)
-        elif command == "delete":
-            print(delete_contact(args, book))
-        elif command == "add-birthday":
-            print(add_birthday(args, book))
-        elif command == "birthdays":
-            if args:
-                try:
-                    days = int(args[0])
-                    upcoming_birthdays = book.get_upcoming_birthdays(days)
-                except ValueError:
-                    print("Invalid number of days. Please enter an integer.")
-                    continue
-            else:
-                upcoming_birthdays = book.get_upcoming_birthdays()
-            if upcoming_birthdays:
-                table = PrettyTable()
-                table.field_names = ["Name", "Birthday"]
-                for name, birthday in upcoming_birthdays:
-                    table.add_row([name, birthday])
-                print(f"Upcoming birthdays in the next {days if args else 7} days:")
-                print(table)
-            else:
-                print("No upcoming birthdays in the next 7 days.")
-        elif command == "show-birthday":
-            print(show_birthday(args, book))
-        elif command == "add-note":
-            print(add_note(args, notebook))
-        elif command == "delete-note":
-            print(delete_note(args, notebook))
-        elif command == "add-tag":
-            print(add_tag(args, notebook))
-        elif command == "delete-tag":
-            print(delete_tag(args, notebook))
-        elif command == "find-tag":
-            result = find_by_tag(args, notebook)
-            if isinstance(result, PrettyTable):
-                print(result)
-            else:
-                print(result)
-        elif command == "show-notes":
-            result = show_notes(notebook)
-            if isinstance(result, PrettyTable):
-                print(result)
-            else:
-                print(result)
-        elif command in ["exit", "close"]:
-            save_data(book)
-            save_notes(notebook)
-            print("Goodbye!")
-            break
         else:
             print("Command not found! Please try again")
 
+def print_result(result):
+    if isinstance(result, PrettyTable):
+        print(result)
+    else:
+        print(result)
+
+def handle_birthdays(args, book):
+    if args:
+        try:
+            days = int(args[0])
+            upcoming_birthdays = book.get_upcoming_birthdays(days)
+        except ValueError:
+            print("Invalid number of days. Please enter an integer.")
+            return
+    else:
+        upcoming_birthdays = book.get_upcoming_birthdays()
+    if upcoming_birthdays:
+        table = PrettyTable()
+        table.field_names = ["Name", "Birthday"]
+        for name, birthday in upcoming_birthdays:
+            table.add_row([name, birthday])
+        print(f"Upcoming birthdays in the next {days if args else 7} days:")
+        print(table)
+    else:
+        print("No upcoming birthdays in the next 7 days.")
+
+def exit_program(book, notebook):
+    save_data(book)
+    save_notes(notebook)
+    print("Goodbye!")
+    exit()
 
 if __name__ == "__main__":
     main()
