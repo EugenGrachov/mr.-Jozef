@@ -25,7 +25,28 @@ class Phone(Field):
 
     @staticmethod
     def is_valid_phone(phone):
-        return re.fullmatch(r"\d{10}", phone) is not None
+        if not phone or not isinstance(phone, str):
+            return False
+        phone_international = r'^\+?[0-9]{1,3}?[-. ]?\(?\d{1,4}?\)?[-. ]?\d{1,4}[-. ]?\d{1,4}[-. ]?\d{1,9}$'
+        phone_local = r'^\d{10}$'
+        return bool(re.match(phone_international, phone)) or bool(re.fullmatch(phone_local, phone))
+
+class Email(Field):
+    def __init__(self, value):
+        if not self.is_valid_email(value):
+            raise ValueError("Invalid email format.")
+        super().__init__(value)
+
+    @staticmethod
+    def is_valid_email(email):
+        return re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email) is not None
+
+class Address(Field):
+    def __init__(self, value):
+        if not value or not isinstance(value, str):
+            raise ValueError("Address must be a non-empty string.")
+        super().__init__(value)
+
 
 class Birthday(Field):
     def __init__(self, value):
@@ -42,6 +63,8 @@ class Record:
         self.name = Name(name)
         self.phones = []
         self.birthday = None
+        self.email = None
+        self.address = None
 
     def add_phone(self, phone):
         self.phones.append(Phone(phone))
@@ -74,15 +97,34 @@ class Record:
     def add_birthday(self, birthday):
         self.birthday = Birthday(birthday)
 
+    def add_email(self, email):
+        self.email = Email(email)
+
+    def add_address(self, address):
+        self.address = Address(address)
+
     def __str__(self):
         birthday_str = f", birthday: {self.birthday}" if self.birthday else ""
-        return f"Contact name: {self.name}, phones: {'; '.join(p.value for p in self.phones)}{birthday_str}"
+        email_str = f", email: {self.email}" if self.email else ""
+        address_str = f", address: {self.address}" if self.address else ""
+        return f"Contact name: {self.name}, phones: {'; '.join(p.value for p in self.phones)}{birthday_str}{email_str}{address_str}"
+
+    def to_dict(self):
+        return {
+            "Name": self.name.value,
+            "Phones": "; ".join(p.value for p in self.phones),
+            "Birthday": str(self.birthday) if self.birthday else "N/A",
+            "Email": str(getattr(self, 'email', 'N/A')) if getattr(self, 'email', 'N/A') != 'N/A' else "N/A",
+            "Address": str(getattr(self, 'address', 'N/A')) if getattr(self, 'address', 'N/A') != 'N/A' else "N/A",
+        }
     
     def to_dict(self):
         return {
             "Name": self.name.value,
             "Phones": "; ".join(p.value for p in self.phones),
             "Birthday": str(self.birthday) if self.birthday else "N/A",
+            "Email": str(self.email) if self.email else "N/A",
+            "Address": str(self.address) if self.address else "N/A",
         }
 
 class AddressBook(UserDict):
@@ -114,10 +156,10 @@ class AddressBook(UserDict):
     
     def to_table(self):
         table = PrettyTable()
-        table.field_names = ["Name", "Phones", "Birthday"]
+        table.field_names = ["Name", "Phones", "Birthday", "Email", "Address"]
         for record in self.data.values():
             table.add_row(record.to_dict().values())
-        return table    
+        return table   
 
 def parse_input(user_input):
     if not user_input.strip():
@@ -180,9 +222,9 @@ def get_contact(args, book):
     record = book.find(name)
     if not record:
         raise KeyError(f"Contact {name} not found.")
-    
+
     table = PrettyTable()
-    table.field_names = ["Name", "Phones", "Birthday"]
+    table.field_names = ["Name", "Phones", "Birthday", "Email", "Address"]
     table.add_row(record.to_dict().values())
     return table
 
@@ -312,6 +354,8 @@ COMMANDS = [
     "show-notes",
     "exit",
     "close",
+    "add-email",
+    "add-address"
 ]
 
 def completer(text, state):
@@ -341,8 +385,32 @@ def display_commands():
         ["find-tag", "Find notes by tag"],
         ["show-notes", "Show all notes"],
         ["exit/close", "Exit the program"],
+        ["add-email", "Add an email to a contact"],
+        ["add-address", "Add an address to a contact"]
     ])
     print(table)
+
+@input_error
+def add_email(args, book):
+    if len(args) < 2:
+        raise ValueError("Give me name and email please.")
+    name, email = args[0], args[1]
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.add_email(email)
+    return "Email added."
+
+@input_error
+def add_address(args, book):
+    if len(args) < 2:
+        raise ValueError("Give me name and address please.")
+    name, address = args[0], " ".join(args[1:])
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.add_address(address)
+    return "Address added."
 
 def main():
     book = load_data()
@@ -370,6 +438,8 @@ def main():
         "show-notes": lambda args: print_result(show_notes(notebook)),
         "exit": lambda args: exit_program(book, notebook),
         "close": lambda args: exit_program(book, notebook),
+        "add-email": lambda args: add_email(args, book),
+        "add-address": lambda args: add_address(args, book)
     }
 
     while True:
