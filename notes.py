@@ -78,3 +78,6 @@ def load_notes(filename="notes.pkl"):
             return pickle.load(f)
     except FileNotFoundError:
         return NoteBook()
+
+
+
