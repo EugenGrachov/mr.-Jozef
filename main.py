@@ -5,7 +5,7 @@ from datetime import datetime
 import datetime as dt
 import pickle
 from prettytable import PrettyTable
-from notes import NoteBook, load_notes, save_notes, Note
+from mrjozef.notes import NoteBook, load_notes, save_notes, Note
 
 class Field:
     def __init__(self, value):
