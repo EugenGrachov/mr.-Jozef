@@ -42,8 +42,7 @@ Hi, I am **mr.Jozef** — a smart CLI bot that will help you manage contacts and
 ## 🛠️ Installation and launch
 
 ```bash
-git clone https://github.com/CyberDat/First_repo.git
-cd First_repo
+git clone https://github.com/EugenGrachov/mr.-Jozef
 python main.py
 ```
 

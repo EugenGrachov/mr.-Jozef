@@ -1,10 +1,11 @@
 import readline
 from collections import UserDict
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 import datetime as dt
 import pickle
 from prettytable import PrettyTable
+from notes import NoteBook, load_notes, save_notes, Note
 
 class Field:
     def __init__(self, value):
@@ -24,7 +25,28 @@ class Phone(Field):
 
     @staticmethod
     def is_valid_phone(phone):
-        return re.fullmatch(r"\d{10}", phone) is not None
+        if not phone or not isinstance(phone, str):
+            return False
+        phone_international = r'^\+?[0-9]{1,3}?[-. ]?\(?\d{1,4}?\)?[-. ]?\d{1,4}[-. ]?\d{1,4}[-. ]?\d{1,9}$'
+        phone_local = r'^\d{10}$'
+        return bool(re.match(phone_international, phone)) or bool(re.fullmatch(phone_local, phone))
+
+class Email(Field):
+    def __init__(self, value):
+        if not self.is_valid_email(value):
+            raise ValueError("Invalid email format.")
+        super().__init__(value)
+
+    @staticmethod
+    def is_valid_email(email):
+        return re.fullmatch(r"[^@]+@[^@]+\.[^@]+", email) is not None
+
+class Address(Field):
+    def __init__(self, value):
+        if not value or not isinstance(value, str):
+            raise ValueError("Address must be a non-empty string.")
+        super().__init__(value)
+
 
 class Birthday(Field):
     def __init__(self, value):
@@ -41,6 +63,8 @@ class Record:
         self.name = Name(name)
         self.phones = []
         self.birthday = None
+        self.email = None
+        self.address = None
 
     def add_phone(self, phone):
         self.phones.append(Phone(phone))
@@ -73,15 +97,34 @@ class Record:
     def add_birthday(self, birthday):
         self.birthday = Birthday(birthday)
 
+    def add_email(self, email):
+        self.email = Email(email)
+
+    def add_address(self, address):
+        self.address = Address(address)
+
     def __str__(self):
         birthday_str = f", birthday: {self.birthday}" if self.birthday else ""
-        return f"Contact name: {self.name}, phones: {'; '.join(p.value for p in self.phones)}{birthday_str}"
+        email_str = f", email: {self.email}" if self.email else ""
+        address_str = f", address: {self.address}" if self.address else ""
+        return f"Contact name: {self.name}, phones: {'; '.join(p.value for p in self.phones)}{birthday_str}{email_str}{address_str}"
+
+    def to_dict(self):
+        return {
+            "Name": self.name.value,
+            "Phones": "; ".join(p.value for p in self.phones),
+            "Birthday": str(self.birthday) if self.birthday else "N/A",
+            "Email": str(getattr(self, 'email', 'N/A')) if getattr(self, 'email', 'N/A') != 'N/A' else "N/A",
+            "Address": str(getattr(self, 'address', 'N/A')) if getattr(self, 'address', 'N/A') != 'N/A' else "N/A",
+        }
     
     def to_dict(self):
         return {
             "Name": self.name.value,
             "Phones": "; ".join(p.value for p in self.phones),
             "Birthday": str(self.birthday) if self.birthday else "N/A",
+            "Email": str(self.email) if self.email else "N/A",
+            "Address": str(self.address) if self.address else "N/A",
         }
 
 class AddressBook(UserDict):
@@ -96,27 +139,6 @@ class AddressBook(UserDict):
             del self.data[name]
         else:
             raise KeyError(f"Contact {name} not found.")
-
-    # def get_upcoming_birthdays(self):
-    #     today = dt.datetime.now().date()
-    #     upcoming_birthdays = []
-    #     for record in self.data.values():
-    #         if record.birthday:
-    #             birthday = record.birthday.value
-    #             birthday_this_year = birthday.replace(year=today.year)
-    #             if birthday_this_year < today:
-    #                 birthday_this_year = birthday.replace(year=today.year + 1)
-    #             delta = birthday_this_year - today
-    #             if delta.days < 7:
-    #                 upcoming_birthdays.append((record.name.value, birthday_this_year.strftime("%d.%m.%Y")))
-    #     return upcoming_birthdays
-    
-    # def to_table(self):
-    #     table = PrettyTable()
-    #     table.field_names = ["Name", "Phones", "Birthday"]
-    #     for record in self.data.values():
-    #         table.add_row(record.to_dict().values())
-    #     return table
 
     def get_upcoming_birthdays(self, days=7):
         today = dt.datetime.now().date()
@@ -134,20 +156,10 @@ class AddressBook(UserDict):
     
     def to_table(self):
         table = PrettyTable()
-        table.field_names = ["Name", "Phones", "Birthday"]
+        table.field_names = ["Name", "Phones", "Birthday", "Email", "Address"]
         for record in self.data.values():
             table.add_row(record.to_dict().values())
-        return table    
-
-# def parse_input(user_input):
-#     if not user_input.strip():
-#         return None, []
-#     try:
-#         cmd, *args = user_input.split()
-#         cmd = cmd.strip().lower()
-#         return cmd, args
-#     except ValueError:
-#         return None, []
+        return table   
 
 def parse_input(user_input):
     if not user_input.strip():
@@ -210,9 +222,9 @@ def get_contact(args, book):
     record = book.find(name)
     if not record:
         raise KeyError(f"Contact {name} not found.")
-    
+
     table = PrettyTable()
-    table.field_names = ["Name", "Phones", "Birthday"]
+    table.field_names = ["Name", "Phones", "Birthday", "Email", "Address"]
     table.add_row(record.to_dict().values())
     return table
 
@@ -267,6 +279,62 @@ def load_data(filename="addressbook.pkl"):
     except FileNotFoundError:
         return AddressBook()
 
+@input_error
+def add_note(args, notebook):
+    if len(args) < 1:
+        raise ValueError("Give me note text please.")
+    text = " ".join(args)
+    note = Note(text)
+    notebook.add_note(note)
+    return "Note added."
+
+@input_error
+def delete_note(args, notebook):
+    if len(args) < 1:
+        raise ValueError("Give me note ID please.")
+    note_id = int(args[0])
+    notebook.delete_note(note_id)
+    return f"Note {note_id} deleted."
+
+@input_error
+def add_tag(args, notebook):
+    if len(args) < 2:
+        raise ValueError("Give me note ID and tag please.")
+    note_id, tag = int(args[0]), args[1]
+    if note_id not in notebook.data:
+        raise KeyError(f"Note {note_id} not found.")
+    notebook.data[note_id].add_tag(tag)
+    return f"Tag '{tag}' added to note {note_id}."
+
+@input_error
+def delete_tag(args, notebook):
+    if len(args) < 2:
+        raise ValueError("Give me note ID and tag please.")
+    note_id, tag = int(args[0]), args[1]
+    if note_id not in notebook.data:
+        raise KeyError(f"Note {note_id} not found.")
+    notebook.data[note_id].remove_tag(tag)
+    return f"Tag '{tag}' removed from note {note_id}."
+
+@input_error
+def find_by_tag(args, notebook):
+    if len(args) < 1:
+        raise ValueError("Give me tag please.")
+    tag = args[0]
+    found_notes = notebook.find_by_tag(tag)
+    if not found_notes:
+        return f"No notes found with tag '{tag}'."
+    table = PrettyTable()
+    table.field_names = ["Note", "Tags", "Creation Date"]
+    for note in found_notes:
+        table.add_row(note.to_dict().values())
+    return table
+
+def show_notes(notebook):
+    if not notebook.data:
+        return "No notes saved yet."
+    else:
+        return notebook.to_table()
 
 COMMANDS = [
     "hello",
@@ -286,6 +354,8 @@ COMMANDS = [
     "show-notes",
     "exit",
     "close",
+    "add-email",
+    "add-address"
 ]
 
 def completer(text, state):
@@ -315,135 +385,32 @@ def display_commands():
         ["find-tag", "Find notes by tag"],
         ["show-notes", "Show all notes"],
         ["exit/close", "Exit the program"],
+        ["add-email", "Add an email to a contact"],
+        ["add-address", "Add an address to a contact"]
     ])
     print(table)
 
-class Tag(Field):
-    pass
-
-class Note:
-    def __init__(self, text):
-        self.text = text
-        self.tags = []
-        self.creation_date = datetime.now()
-
-    def add_tag(self, tag):
-        self.tags.append(Tag(tag))
-
-    def remove_tag(self, tag):
-        for t in self.tags:
-            if t.value == tag:
-                self.tags.remove(t)
-                return
-        raise ValueError(f"Tag {tag} not found.")
-
-    def __str__(self):
-        tags_str = f", tags: {'; '.join(t.value for t in self.tags)}" if self.tags else ""
-        date_str = self.creation_date.strftime("%d.%m.%Y %H:%M:%S")
-        return f"Note: {self.text}, created at: {date_str}{tags_str}"
-    
-    def to_dict(self):
-        return {
-            "Note": self.text,
-            "Tags": "; ".join(t.value for t in self.tags),
-            "Creation Date": self.creation_date.strftime("%d.%m.%Y %H:%M:%S")
-        }
-
-
-class NoteBook(UserDict):
-    def add_note(self, note):
-        self.data[len(self.data) + 1] = note
-
-    def delete_note(self, note_id):
-        if note_id in self.data:
-            del self.data[note_id]
-        else:
-            raise KeyError(f"Note {note_id} not found.")
-
-    def find_by_tag(self, tag):
-        found_notes = []
-        for note in self.data.values():
-            for t in note.tags:
-                if t.value == tag:
-                    found_notes.append(note)
-                    break
-        return found_notes
-
-    def to_table(self):
-        table = PrettyTable()
-        table.field_names = ["ID", "Note", "Tags", "Creation Date"]
-        for note_id, note in self.data.items():
-            table.add_row([note_id, note.to_dict()["Note"], note.to_dict()["Tags"], note.to_dict()["Creation Date"]])
-        return table
-
 @input_error
-def add_note(args, notebook):
-    if len(args) < 1:
-        raise ValueError("Give me note text please.")
-    text = " ".join(args)
-    note = Note(text)
-    notebook.add_note(note)
-    return "Note added."
-
-@input_error
-def delete_note(args, notebook):
-    if len(args) < 1:
-        raise ValueError("Give me note ID please.")
-    note_id = int(args[0])
-    notebook.delete_note(note_id)
-    return f"Note {note_id} deleted."
-
-
-@input_error
-def add_tag(args, notebook):
+def add_email(args, book):
     if len(args) < 2:
-        raise ValueError("Give me note ID and tag please.")
-    note_id, tag = int(args[0]), args[1]
-    if note_id not in notebook.data:
-        raise KeyError(f"Note {note_id} not found.")
-    notebook.data[note_id].add_tag(tag)
-    return "Tag added."
+        raise ValueError("Give me name and email please.")
+    name, email = args[0], args[1]
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.add_email(email)
+    return "Email added."
 
 @input_error
-def delete_tag(args, notebook):
+def add_address(args, book):
     if len(args) < 2:
-        raise ValueError("Give me note ID and tag please.")
-    note_id, tag = int(args[0]), args[1]
-    if note_id not in notebook.data:
-        raise KeyError(f"Note {note_id} not found.")
-    notebook.data[note_id].remove_tag(tag)
-    return "Tag deleted."
-
-@input_error
-def find_by_tag(args, notebook):
-    if len(args) < 1:
-        raise ValueError("Give me tag please.")
-    tag = args[0]
-    found_notes = notebook.find_by_tag(tag)
-    if not found_notes:
-        return f"No notes found with tag {tag}."
-    table = PrettyTable()
-    table.field_names = ["Note", "Tags"]
-    for note in found_notes:
-        table.add_row([note.to_dict()["Note"], note.to_dict()["Tags"]])
-    return table
-
-def show_notes(notebook):
-    if not notebook.data:
-        return "No notes saved yet."
-    else:
-        return notebook.to_table()
-
-def save_notes(notebook, filename="notes.pkl"):
-    with open(filename, "wb") as f:
-        pickle.dump(notebook, f)
-
-def load_notes(filename="notes.pkl"):
-    try:
-        with open(filename, "rb") as f:
-            return pickle.load(f)
-    except FileNotFoundError:
-        return NoteBook()
+        raise ValueError("Give me name and address please.")
+    name, address = args[0], " ".join(args[1:])
+    record = book.find(name)
+    if not record:
+        raise KeyError(f"Contact {name} not found.")
+    record.add_address(address)
+    return "Address added."
 
 def main():
     book = load_data()
@@ -452,96 +419,78 @@ def main():
     display_commands()
     readline.set_completer(completer)
     readline.parse_and_bind("tab: complete")
+
+    command_handlers = {
+        "hello": lambda args: (print("How can I help you?"), display_commands())[0],
+        "add": lambda args: add_contact(args, book),
+        "change": lambda args: change_contact(args, book),
+        "phone": lambda args: print_result(get_contact(args, book)),
+        "all": lambda args: print_result(all_contacts(book)),
+        "delete": lambda args: delete_contact(args, book),
+        "add-birthday": lambda args: add_birthday(args, book),
+        "birthdays": lambda args: handle_birthdays(args, book),
+        "show-birthday": lambda args: show_birthday(args, book),
+        "add-note": lambda args: add_note(args, notebook),
+        "delete-note": lambda args: delete_note(args, notebook),
+        "add-tag": lambda args: add_tag(args, notebook),
+        "delete-tag": lambda args: delete_tag(args, notebook),
+        "find-tag": lambda args: print_result(find_by_tag(args, notebook)),
+        "show-notes": lambda args: print_result(show_notes(notebook)),
+        "exit": lambda args: exit_program(book, notebook),
+        "close": lambda args: exit_program(book, notebook),
+        "add-email": lambda args: add_email(args, book),
+        "add-address": lambda args: add_address(args, book)
+    }
+
     while True:
         user_input = input("Please input command: ").strip()
         if not user_input:
             print("Please enter a command.")
             continue
+
         command, args = parse_input(user_input)
         if command is None:
             print("Invalid input format.")
             continue
-        if command == "hello":
-            print("How can I help you?")
-            display_commands()
-        elif command == "add":
-            print(add_contact(args, book))
-        elif command == "change":
-            print(change_contact(args, book))
-        elif command == "phone":
-            result = get_contact(args, book)
-            if isinstance(result, PrettyTable):
+
+        if command in command_handlers:
+            result = command_handlers[command](args)
+            if result is not None:
                 print(result)
-            else:
-                print(result)
-        elif command == "all":
-            result = all_contacts(book)
-            if isinstance(result, PrettyTable):
-                print(result)
-            else:
-                print(result)
-        elif command == "delete":
-            print(delete_contact(args, book))
-        elif command == "add-birthday":
-            print(add_birthday(args, book))
-        # elif command == "birthdays":
-        #     upcoming_birthdays = book.get_upcoming_birthdays()
-        #     if upcoming_birthdays:
-        #         table = PrettyTable()
-        #         table.field_names = ["Name", "Birthday"]
-        #         for name, birthday in upcoming_birthdays:
-        #             table.add_row([name, birthday])
-        #         print("Upcoming birthdays in the next 7 days:")
-        #         print(table)
-        elif command == "birthdays":
-            if args:
-                try:
-                    days = int(args[0])
-                    upcoming_birthdays = book.get_upcoming_birthdays(days)
-                except ValueError:
-                    print("Invalid number of days. Please enter an integer.")
-                    continue
-            else:
-                upcoming_birthdays = book.get_upcoming_birthdays()
-            if upcoming_birthdays:
-                table = PrettyTable()
-                table.field_names = ["Name", "Birthday"]
-                for name, birthday in upcoming_birthdays:
-                    table.add_row([name, birthday])
-                print(f"Upcoming birthdays in the next {days if args else 7} days:")
-                print(table)
-            else:
-                print("No upcoming birthdays in the next 7 days.")
-        elif command == "show-birthday":
-            print(show_birthday(args, book))
-        elif command == "add-note":
-            print(add_note(args, notebook))
-        elif command == "delete-note":
-            print(delete_note(args, notebook))
-        elif command == "add-tag":
-            print(add_tag(args, notebook))
-        elif command == "delete-tag":
-            print(delete_tag(args, notebook))
-        elif command == "find-tag":
-            result = find_by_tag(args, notebook)
-            if isinstance(result, PrettyTable):
-                print(result)
-            else:
-                print(result)
-        elif command == "show-notes":
-            result = show_notes(notebook)
-            if isinstance(result, PrettyTable):
-                print(result)
-            else:
-                print(result)
-        elif command in ["exit", "close"]:
-            save_data(book)
-            save_notes(notebook)
-            print("Goodbye!")
-            break
         else:
             print("Command not found! Please try again")
 
+def print_result(result):
+    if isinstance(result, PrettyTable):
+        print(result)
+    else:
+        print(result)
+
+def handle_birthdays(args, book):
+    if args:
+        try:
+            days = int(args[0])
+            upcoming_birthdays = book.get_upcoming_birthdays(days)
+        except ValueError:
+            print("Invalid number of days. Please enter an integer.")
+            return
+    else:
+        upcoming_birthdays = book.get_upcoming_birthdays()
+    if upcoming_birthdays:
+        table = PrettyTable()
+        table.field_names = ["Name", "Birthday"]
+        for name, birthday in upcoming_birthdays:
+            table.add_row([name, birthday])
+        print(f"Upcoming birthdays in the next {days if args else 7} days:")
+        print(table)
+    else:
+        print("No upcoming birthdays in the next 7 days.")
+
+def exit_program(book, notebook):
+    save_data(book)
+    save_notes(notebook)
+    print("Goodbye!")
+    exit()
 
 if __name__ == "__main__":
     main()
